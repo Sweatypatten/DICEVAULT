@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete MTG Variant Tracker</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --green: #238636; --gold: #f1c40f; --promo: #9b59b6; --planar: #00e5ff; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; padding-bottom: 90px; }
+        
+        /* Master Header & Smart Scroll */
+        .sticky-header { position: sticky; top: 0; background: var(--bg); padding: 15px; border-bottom: 2px solid #30363d; z-index: 100; box-shadow: 0 4px 8px rgba(0,0,0,0.5); transition: transform 0.3s ease-in-out; margin: -10px -10px 20px -10px;}
+        
+        /* Search Bar */
+        .search-bar { width: 100%; padding: 12px; margin-top: 10px; border-radius: 6px; border: 1px solid #30363d; background: var(--card); color: #fff; font-size: 1em; box-sizing: border-box; }
+        .search-bar:focus { outline: none; border-color: var(--accent); }
+        .search-bar::placeholder { color: #8b949e; }
+
+        .master-stats-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 5px; margin-bottom: 4px; }
+        .master-stats-row.center-align { align-items: center; }
+        .stat-label { font-size: 0.85em; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; pointer-events: none;}
+        .stat-value { font-size: 0.95em; color: #fff; font-weight: bold; font-family: monospace; pointer-events: none;}
+        .dual-stat { text-align: right; font-size: 0.85em; line-height: 1.3; }
+        
+        .progress-bar { width: 100%; background: #30363d; height: 10px; border-radius: 5px; margin-bottom: 8px; overflow: hidden; pointer-events: none;}
+        .progress-fill { height: 100%; background: var(--green); width: 0%; transition: 0.4s ease; }
+        .progress-fill-gold { height: 100%; background: var(--gold); width: 0%; transition: 0.4s ease; }
+        .progress-fill-blue { height: 100%; background: var(--accent); width: 0%; transition: 0.4s ease; }
+        .progress-fill-promo { height: 100%; background: var(--promo); width: 0%; transition: 0.4s ease; }
+        .progress-fill-planar { height: 100%; background: var(--planar); width: 0%; transition: 0.4s ease; }
+        
+        /* Clickable Tracker Areas */
+        .clickable-tracker { cursor: pointer; padding: 5px; border-radius: 6px; transition: background 0.2s; margin-top: 2px; }
+        .clickable-tracker:active { background: #21262d; }
+        
+        /* Tracker Dropdown Tab */
+        .tracker-toggle { text-align: center; color: #8b949e; font-size: 0.8em; font-weight: bold; text-transform: uppercase; cursor: pointer; padding: 8px; margin-top: 8px; background: #21262d; border-radius: 6px; border: 1px solid #30363d; transition: background 0.2s;}
+        .tracker-toggle:active { background: #30363d; }
+
+        /* Category Sub-Trackers & Collapsible Headers */
+        .era-wrapper { margin-bottom: 20px; }
+        .era-sticky-wrapper { position: sticky; top: 0; background: var(--bg); z-index: 95; padding: 20px 10px 10px 10px; margin: 0 -10px; }
+        .era-header-container { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px; border-bottom: 2px solid var(--gold); padding-bottom: 5px; cursor: pointer; }
+        .era-header { color: var(--gold); font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px; margin: 0; display: flex; align-items: center; pointer-events: none;}
+        .era-caret { font-size: 0.7em; margin-left: 8px; color: #8b949e; transition: transform 0.2s ease; display: inline-block; }
+        .era-caret.collapsed { transform: rotate(-90deg); }
+        .era-stats { font-size: 0.75em; color: #8b949e; font-weight: bold; font-family: monospace; pointer-events: none; text-align: right; line-height: 1.3;}
+        .era-progress-bar { width: 100%; background: #30363d; height: 6px; border-radius: 3px; margin-bottom: 5px; overflow: hidden; pointer-events: none;}
+        .era-progress-fill { height: 100%; background: var(--accent); width: 0%; transition: 0.4s ease; }
+        .era-content { display: block; overflow: hidden; }
+        
+        /* Set Blocks */
+        .set-block { background: var(--card); border: 1px solid #30363d; border-radius: 10px; margin-bottom: 15px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .set-title-bar { background: #21262d; padding: 10px 15px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+        .set-title-wrapper { display: flex; align-items: center; flex-grow: 1; margin-right: 10px; }
+        .set-title { font-weight: bold; color: var(--accent); font-size: 1.1em; }
+        .btn-select-all { background: #30363d; color: #c9d1d9; border: 1px solid #484f58; padding: 5px 10px; border-radius: 5px; font-size: 0.75em; cursor: pointer; font-weight: bold; text-transform: uppercase; white-space: nowrap; }
+        .btn-select-all:active { background: #484f58; }
+        
+        .item { display: flex; align-items: center; padding: 12px 15px; border-bottom: 1px solid #30363d; font-size: 0.9em; transition: background 0.2s; }
+        .item:last-child { border-bottom: none; }
+        .item:active { background: #21262d; }
+        
+        input[type="checkbox"] { width: 24px; height: 24px; margin-right: 15px; accent-color: var(--green); flex-shrink: 0; }
+        
+        /* Images */
+        .dice-img { width: 45px; height: 45px; object-fit: cover; border-radius: 6px; border: 1px solid #30363d; margin-right: 15px; background: #0d1117; display: flex; align-items: center; justify-content: center; font-size: 0.55em; color: #8b949e; overflow: hidden; font-weight: bold; flex-shrink: 0;}
+        .dice-img img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: opacity 0.2s; }
+        .dice-img img:active { opacity: 0.7; }
+        
+        .label-container { flex-grow: 1; display: flex; flex-direction: column; }
+        label { font-weight: bold; color: #e6edf3; margin-bottom: 2px; }
+        .filename-hint { font-size: 0.75em; color: #484f58; font-family: monospace; }
+        
+        /* Dev Mode Editable Styling */
+        .editable-active { border: 1px dashed var(--accent) !important; background: rgba(88, 166, 255, 0.1); padding: 2px 4px; border-radius: 4px; outline: none; }
+        .editable-active:focus { background: rgba(88, 166, 255, 0.25); border: 1px solid var(--accent) !important; }
+
+        /* Bottom Controls */
+        .controls { position: fixed; bottom: 0; left: 0; right: 0; background: #161b22; padding: 15px; border-top: 2px solid #30363d; display: flex; gap: 10px; z-index: 90;}
+        button.btn-action { flex: 1; padding: 14px; border-radius: 6px; border: none; font-weight: bold; color: white; cursor: pointer; font-size: 1em; }
+        .btn-dev { background: #30363d; border: 1px solid #484f58; }
+        .btn-reset { background: #da3633; }
+        
+        /* Modal Popup Styling */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 200; justify-content: center; align-items: center; }
+        .modal-content { background: var(--card); border: 2px solid #30363d; border-radius: 10px; width: 85%; max-height: 75vh; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.7); display: flex; flex-direction: column; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #30363d; padding-bottom: 10px; margin-bottom: 10px; }
+        .modal-title { margin: 0; color: #fff; font-size: 1.2em; }
+        .modal-close { background: none; border: none; color: #8b949e; font-size: 1.8em; font-weight: bold; cursor: pointer; padding: 0; line-height: 1; }
+        .modal-body { overflow-y: auto; flex-grow: 1; }
+        .missing-list { list-style-type: none; padding: 0; margin: 0; }
+        .missing-item-link { display: block; padding: 12px 0; border-bottom: 1px solid #21262d; font-size: 0.95em; color: #c9d1d9; font-weight: bold; cursor: pointer; text-decoration: none; transition: color 0.2s;}
+        .missing-item-link:active { color: var(--accent); }
+        .missing-list li:last-child .missing-item-link { border-bottom: none; }
+        .all-caught-up { text-align: center; color: var(--green); font-weight: bold; padding: 20px 0; }
+        
+        /* Image Zoom Modal Styling */
+        .image-modal-content { display: flex; justify-content: center; align-items: center; max-width: 90vw; max-height: 90vh; outline: none; }
+        .image-modal-content img { max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.9); object-fit: contain; }
+
+        .error-box { background: #3b1111; border: 2px solid #ff4444; color: #ff9999; padding: 20px; border-radius: 10px; font-family: monospace; overflow-x: auto;}
+    </style>
+</head>
+<body>
+
+<div class="sticky-header" id="masterHeader">
+    <h2 style="margin:0; color: #fff; text-align: center; margin-bottom: 5px;">Variant Vault</h2>
+    
+    <div class="clickable-tracker" onclick="window.showMissing('main')">
+        <div class="master-stats-row">
+            <span class="stat-label" style="color: var(--gold);">Main Sets Represented:</span>
+            <span id="set_pText" class="stat-value">Loading...</span>
+        </div>
+        <div class="progress-bar" style="margin-bottom: 4px;"><div id="set_pFill" class="progress-fill-gold"></div></div>
+    </div>
+
+    <div class="tracker-toggle" onclick="window.toggleExtraTrackers()">
+        <span id="trackerToggleText">Show Extra Trackers ▼</span>
+    </div>
+
+    <div id="extraTrackers" style="display: none; margin-top: 10px;">
+        <div style="padding: 5px;">
+            <div class="master-stats-row center-align">
+                <span class="stat-label">Total Collection:</span>
+                <span id="pText" class="stat-value dual-stat">Loading...</span>
+            </div>
+            <div class="progress-bar"><div id="pFill" class="progress-fill"></div></div>
+        </div>
+
+        <div class="clickable-tracker" onclick="window.showMissing('promo')">
+            <div class="master-stats-row">
+                <span class="stat-label" style="color: var(--promo);">Promo Sets Represented:</span>
+                <span id="promo_pText" class="stat-value">Loading...</span>
+            </div>
+            <div class="progress-bar"><div id="promo_pFill" class="progress-fill-promo"></div></div>
+        </div>
+        
+        <div class="clickable-tracker" onclick="window.showMissing('planar')">
+            <div class="master-stats-row">
+                <span class="stat-label" style="color: var(--planar);">Planar Dice Collected:</span>
+                <span id="planar_pText" class="stat-value">Loading...</span>
+            </div>
+            <div class="progress-bar"><div id="planar_pFill" class="progress-fill-planar"></div></div>
+        </div>
+
+        <div class="clickable-tracker" onclick="window.showMissing('bundle')">
+            <div class="master-stats-row">
+                <span class="stat-label" style="color: var(--accent);">Bundle Dice Collected:</span>
+                <span id="bundle_pText" class="stat-value">Loading...</span>
+            </div>
+            <div class="progress-bar"><div id="bundle_pFill" class="progress-fill-blue"></div></div>
+        </div>
+    </div>
+
+    <input type="text" id="searchInput" class="search-bar" placeholder="Search for a set..." oninput="window.filterSets()">
+</div>
+
+<div id="vault"></div>
+
+<div class="controls">
+    <button class="btn-action btn-dev" id="btnDevMode" onclick="window.toggleDevMode()">Dev Mode: OFF</button>
+    <button class="btn-action btn-reset" onclick="window.resetAll()">Reset</button>
+</div>
+
+<div id="missingModal" class="modal-overlay" onclick="window.closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 id="modalTitle" class="modal-title">Missing Sets</h3>
+            <button class="modal-close" onclick="window.closeModal(event)">&times;</button>
+        </div>
+        <div class="modal-body">
+            <ul id="modalList" class="missing-list"></ul>
+        </div>
+    </div>
+</div>
+
+<div id="imageModal" class="modal-overlay" onclick="window.closeImageModal(event)">
+    <div class="image-modal-content">
+        <img id="enlargedImage" src="" alt="Enlarged Dice">
+    </div>
+</div>
+
+<script>
+window.missingData = { main: [], promo: [], planar: [], bundle: [] };
+window.customTextData = {};
+window.isDevMode = false;
+
+try {
+    window.customTextData = JSON.parse(localStorage.getItem('dicecollector_custom_text_v4') || '{}');
+} catch (e) {}
+
+// Dev Mode Engine
+window.toggleDevMode = function() {
+    window.isDevMode = !window.isDevMode;
+    const btn = document.getElementById('btnDevMode');
+    
+    if (window.isDevMode) {
+        btn.innerText = "Dev Mode: ON";
+        btn.style.background = "var(--accent)";
+        document.querySelectorAll('.editable-text').forEach(el => {
+            el.contentEditable = "true";
+            el.classList.add('editable-active');
+        });
+    } else {
+        btn.innerText = "Dev Mode: OFF";
+        btn.style.background = "#30363d";
+        document.querySelectorAll('.editable-text').forEach(el => {
+            el.contentEditable = "false";
+            el.classList.remove('editable-active');
+        });
+    }
+};
+
+window.saveCustomText = function(id, text) {
+    window.customTextData[id] = text.trim();
+    try {
+        localStorage.setItem('dicecollector_custom_text_v4', JSON.stringify(window.customTextData));
+    } catch(e) {}
+    window.buildVault();
+};
+
+// Smart Scroll Logic
+let lastScrollY = window.scrollY;
+window.addEventListener('scroll', () => {
+    const header = document.getElementById('masterHeader');
+    const currentScrollY = window.scrollY;
+    
+    if (currentScrollY > lastScrollY && currentScrollY > 150) {
+        header.style.transform = 'translateY(-100%)';
+    } else {
+        header.style.transform = 'translateY(0)';
+    }
+    lastScrollY = currentScrollY <= 0 ? 0 : currentScrollY;
+});
+
+// Dropdown Tracker Tab
+window.toggleExtraTrackers = function() {
+    const extraMenu = document.getElementById('extraTrackers');
+    const toggleText = document.getElementById('trackerToggleText');
+    if (extraMenu.style.display === 'none') {
+        extraMenu.style.display = 'block';
+        toggleText.innerText = 'Hide Extra Trackers ▲';
+    } else {
+        extraMenu.style.display = 'none';
+        toggleText.innerText = 'Show Extra Trackers ▼';
+    }
+};
+
+// Select All Button
+window.toggleSetAll = function(eIdx, sIdx, count) {
+    let allChecked = true;
+    let cbs = [];
+    for(let i = 1; i <= count; i++) {
+        let cb = document.getElementById(`d_${eIdx}_${sIdx}_${i}`);
+        if(cb) {
+            cbs.push(cb);
+            if(!cb.checked) allChecked = false;
+        }
+    }
+    cbs.forEach(cb => { cb.checked = !allChecked; });
+    window.updateProgress();
+};
+
+// Modal Scroll-to Logic
+window.goToSet = function(blockId, eIdx) {
+    window.closeModal();
+    const searchInput = document.getElementById('searchInput');
+    if(searchInput.value.trim() !== '') {
+        searchInput.value = '';
+        window.filterSets();
+    }
+    const content = document.getElementById(`era_content_${eIdx}`);
+    const caret = document.getElementById(`era_caret_${eIdx}`);
+    if (content && content.style.display === 'none') {
+        content.style.display = 'block';
+        caret.classList.remove('collapsed');
+    }
+    const setBlock = document.getElementById(blockId);
+    if (setBlock) {
+        setTimeout(() => {
+            const headerOffset = document.getElementById('masterHeader').offsetHeight + 20;
+            const elementPosition = setBlock.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+            window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+            setBlock.style.transition = 'box-shadow 0.4s, border-color 0.4s';
+            setBlock.style.boxShadow = '0 0 15px var(--accent)';
+            setBlock.style.borderColor = 'var(--accent)';
+            setTimeout(() => {
+                setBlock.style.boxShadow = '';
+                setBlock.style.borderColor = '';
+            }, 2000);
+        }, 50);
+    }
+};
+
+window.openImageModal = function(imgSrc) {
+    const modal = document.getElementById('imageModal');
+    const img = document.getElementById('enlargedImage');
+    img.src = imgSrc;
+    modal.style.display = 'flex';
+};
+
+window.closeImageModal = function(event) {
+    if (event) event.stopPropagation();
+    document.getElementById('imageModal').style.display = 'none';
+};
+
+try {
+    // REVERTED SITEDATA: Restores original Dev Mode index assignments perfectly.
+    const siteData = [
+        { year: "Premium Deck Series", items: [
+            { name: "Slivers", count: 1, isPromo: true },
+            { name: "Fire & Lightning", count: 1, isPromo: true },
+            { name: "Graveborn", count: 1, isPromo: true }
+        ]},
+        { year: "From The Vault Series", items: [
+            { name: "FTV: Dragons (2008)", count: 1, isPromo: true },
+            { name: "FTV: Exiled (2009)", count: 1, isPromo: true },
+            { name: "FTV: Relics (2010)", count: 1, isPromo: true },
+            { name: "FTV: Legends (2011)", count: 1, isPromo: true },
+            { name: "FTV: Realms (2012)", count: 1, isPromo: true },
+            { name: "FTV: Twenty (2013)", count: 1, isPromo: true },
+            { name: "FTV: Annihilation (2014)", count: 1, isPromo: true },
+            { name: "FTV: Angels (2015)", count: 1, isPromo: true },
+            { name: "FTV: Lore (2016)", count: 1, isPromo: true },
+            { name: "FTV: Transform (2017)", count: 1, isPromo: true }
+        ]},
+        { year: "2000 - 2005 (Classic 5-Color)", items: [
+            { name: "Beatdown", count: 5 },
+            { name: "Apocalypse", count: 5 },
+            { name: "Odyssey", count: 5 },
+            { name: "Deckmasters", count: 5 },
+            { name: "Torment", count: 5 },
+            { name: "Judgment", count: 5 },
+            { name: "Onslaught", count: 5 },
+            { name: "Legions", count: 5 },
+            { name: "Scourge", count: 5 },
+            { name: "Mirrodin", count: 5 },
+            { name: "Darksteel", count: 5 },
+            { name: "Fifth Dawn", count: 5 },
+            { name: "Champions of Kamigawa", count: 5 },
+            { name: "Betrayers of Kamigawa", count: 5 },
+            { name: "Saviors of Kamigawa", count: 5 },
+            { name: "9th Edition", count: 5 },
+            { name: "Coldsnap", count: 5 },
+            { name: "Time Spiral", count: 5 }
+        ]},
+        { year: "2006 - 2010 (Expansion Era)", items: [
+            { name: "Planar Chaos", count: 5 },
+            { name: "Future Sight", count: 5 },
+            { name: "10th Edition", count: 5 },
+            { name: "Lorwyn", count: 5 },
+            { name: "Morningtide", count: 5 },
+            { name: "Shadowmoor", count: 5 },
+            { name: "15th Anniversary D30", count: 1, isPromo: true },
+            { name: "Eventide", count: 5 },
+            { name: "Shards of Alara", count: 5 },
+            { name: "Planeswalker Symbol Promo", count: 1, isPromo: true },
+            { name: "Conflux", count: 5 },
+            { name: "Alara Reborn", count: 1 },
+            { name: "Magic 2010 (M10)", count: 5 },
+            { name: "Planechase", count: 2, isPlanar: true },
+            { name: "Zendikar", count: 5 },
+            { name: "Worldwake", count: 5 },
+            { name: "Rise of the Eldrazi", count: 5 },
+            { name: "Magic 2011 (M11)", count: 5 },
+            { name: "Scars of Mirrodin", count: 5 }
+        ]},
+        { year: "2011 - 2015 (Modern Masters)", items: [
+            { name: "Mirrodin Besieged", count: 5 },
+            { name: "Mirrodin Besieged poison", count: 1, isPromo: true },
+            { name: "New Phyrexia", count: 5 },
+            { name: "Magic 2012 (M12)", count: 5 },
+            { name: "Innistrad", count: 5 },
+            { name: "Dark Ascension", count: 5 },
+            { name: "Avacyn Restored", count: 5 },
+            { name: "Avacyn Restored Hellvault", count: 1, isPromo: true },
+            { name: "Planechase", count: 1, isPlanar: true },
+            { name: "Magic 2013 (M13)", count: 5 },
+            { name: "Return to Ravnica", count: 5 },
+            { name: "Gatecrash", count: 5 },
+            { name: "Dragon's Maze", count: 10 },
+            { name: "Magic 2014 (M14)", count: 5 },
+            { name: "Theros", count: 5 },
+            { name: "Born of the Gods", count: 5 },
+            { name: "Journey into Nyx", count: 5 },
+            { name: "Modern Event Deck", count: 1, isPromo: true },
+            { name: "Magic 2015 (M15)", count: 5 },
+            { name: "Khans of Tarkir", count: 5 },
+            { name: "Duel Decks anthology", count: 2, isPromo: true },
+            { name: "Fate Reforged", count: 5 },
+            { name: "Dragons of Tarkir", count: 5 },
+            { name: "Magic Origins", count: 5 },
+            { name: "Zendikar Vs. Eldrazi", count: 5 },
+            { name: "Hedrons", count: 1, isPromo: true },
+            { name: "Battle for Zendikar", count: 5 }
+        ]},
+        { year: "2016 - 2020", items: [
+            { name: "Oath of the Gatewatch", count: 5 },
+            { name: "Shadows over Innistrad", count: 5 },
+            { name: "Eldritch Moon", count: 5 },
+            { name: "Kaladesh", count: 5 },
+            { name: "Aether Revolt", count: 5 },
+            { name: "Planechase", count: 5 }, 
+            { name: "Amonkhet", count: 2 },
+            { name: "Hour of Devastation", count: 2 },
+            { name: "Ixalan", count: 5 },
+            { name: "Rivals of Ixalan", count: 5 },
+            { name: "Dominaria", count: 5 },
+            { name: "Core Set 2019", count: 5 },
+            { name: "Guilds of Ravnica", count: 5 },
+            { name: "Ravnica Allegiance", count: 5 },
+            { name: "War of the Spark", count: 5 },
+            { name: "Core Set 2020", count: 5 },
+            { name: "Throne of Eldraine", count: 5 },
+            { name: "Game night 2019", count: 5, isPromo: true },
+            { name: "Theros Beyond Death", count: 5 },
+            { name: "Unsanctioned", count: 1, isPromo: true },
+            { name: "Ikoria: Lair of Behemoths", count: 5 },
+            { name: "Core Set 2021", count: 5 },
+            { name: "Zendikar Rising (Standard)", count: 6 }
+        ]},
+        { year: "2021 - Present (Universes Beyond)", items: [
+            { name: "Kaldheim", count: 5 }, 
+            { name: "Strixhaven", count: 5 },
+            { name: "Modern Horizons 2", count: 5 },
+            { name: "AFR Forgotten Realms", count: 5 },
+            { name: "Innistrad: Midnight Hunt", count: 5 },
+            { name: "Innistrad: Crimson Vow", count: 5 },
+            { name: "Kamigawa: Neon Dynasty", count: 5 },
+            { name: "Streets of New Capenna", count: 5 },
+            { name: "Commander legends:Baldur''s Gate", count: 5 },
+            { name: "Dominaria United", count: 5 },
+            { name: "The Brothers' War", count: 5 },
+            { name: "Phyrexia: All Will Be One", count: 6 },
+            { name: "March of the Machine", count: 10 }, 
+            { name: "Lord of the Rings", count: 7 },
+            { name: "Wilds of Eldraine", count: 5 },
+            { name: "Dr Who", count: 1, isPlanar: true },
+            { name: "Lost Caverns of Ixalan", count: 5 },
+            { name: "Murders at Karlov Manor", count: 5 },
+            { name: "Outlaws of Thunder Junction", count: 5 },
+            { name: "Modern Horizons 3", count: 5 },
+            { name: "Assassin's Creed", count: 1 },
+            { name: "Bloomburrow", count: 5 },
+            { name: "Duskmourn", count: 5 },
+            { name: "Foundations", count: 7 },
+            { name: "Aetherdrift", count: 5 },
+            { name: "Tarkir: Dragonstorm", count: 5 },
+            { name: "Final Fantasy", count: 7 },
+            { name: "Edge of Eternities", count: 5 },
+            { name: "Spiderman", count: 5 },
+            { name: "Avatar: The Last Airbender", count: 5 },
+            { name: "Lorwyn Eclipsed", count: 5 },
+            { name: "TMNT", count: 4 }
+        ]},
+        { year: "BUNDLE DICE", items: [
+            { name: "Core Set 2020", count: 1 },
+            { name: "Throne of Eldraine", count: 2 },
+            { name: "Theros Beyond Death", count: 1 },
+            { name: "Ikoria: Lair of Behemoths", count: 1 },
+            { name: "Core Set 2021", count: 1 },
+            { name: "Zendikar Rising (Standard)", count: 2 },
+            { name: "Kaldheim", count: 1 }, 
+            { name: "Strixhaven", count: 1 },
+            { name: "Modern Horizons 2", count: 1 },
+            { name: "AFR Forgotten Realms", count: 2 },
+            { name: "Innistrad: Midnight Hunt", count: 1 },
+            { name: "Innistrad: Crimson Vow", count: 2 },
+            { name: "Kamigawa: Neon Dynasty", count: 1 },
+            { name: "Streets of New Capenna", count: 1 },
+            { name: "Commander legends:Baldur''s Gate", count: 1 },
+            { name: "Dominaria United", count: 1 },
+            { name: "The Brothers' War", count: 3 },
+            { name: "30th Anniversary", count: 1, isPromo: true },
+            { name: "Phyrexia: All Will Be One", count: 1 },
+            { name: "March of the Machine", count: 1 },
+            { name: "March of the Machine: Aftermath", count: 1 },
+            { name: "Lord of the Rings", count: 2 },
+            { name: "Wilds of Eldraine", count: 1 },
+            { name: "Lost Caverns of Ixalan", count: 2 },
+            { name: "Murders at Karlov Manor", count: 1 },
+            { name: "Outlaws of Thunder Junction", count: 2 },
+            { name: "Modern Horizons 3", count: 2 },
+            { name: "Bloomburrow", count: 1 },
+            { name: "Duskmourn", count: 2 },
+            { name: "Foundations", count: 1 },
+            { name: "Aetherdrift", count: 2 },
+            { name: "Tarkir: Dragonstorm", count: 1 },
+            { name: "Final Fantasy", count: 2 },
+            { name: "Edge of Eternities", count: 1 },
+            { name: "Spiderman", count: 2 },
+            { name: "Secret Lair: Encyclopedia", count: 1, isPromo: true },
+            { name: "Avatar: The Last Airbender", count: 1 },
+            { name: "Lorwyn Eclipsed", count: 1 },
+            { name: "TMNT", count: 2 }
+        ]}
+    ];
+
+    window.toggleEra = function(eIdx) {
+        const content = document.getElementById(`era_content_${eIdx}`);
+        const caret = document.getElementById(`era_caret_${eIdx}`);
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            caret.classList.remove('collapsed');
+        } else {
+            content.style.display = 'none';
+            caret.classList.add('collapsed');
+        }
+    };
+
+    window.filterSets = function() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        const eras = document.querySelectorAll('.era-wrapper');
+
+        eras.forEach(era => {
+            let hasVisibleSet = false;
+            const sets = era.querySelectorAll('.set-block');
+
+            sets.forEach(set => {
+                const titleEl = set.querySelector('.set-title');
+                const title = titleEl ? titleEl.innerText.toLowerCase() : '';
+                if (title.includes(query)) {
+                    set.style.display = 'block';
+                    hasVisibleSet = true;
+                } else {
+                    set.style.display = 'none';
+                }
+            });
+
+            if (hasVisibleSet) {
+                era.style.display = 'block';
+                if (query.trim() !== '') {
+                    const eIdx = era.id.split('_')[2];
+                    document.getElementById(`era_content_${eIdx}`).style.display = 'block';
+                    document.getElementById(`era_caret_${eIdx}`).classList.remove('collapsed');
+                }
+            } else {
+                era.style.display = 'none';
+            }
+        });
+    };
+
+    window.updateProgress = function() {
+        const cbs = document.querySelectorAll('input[type="checkbox"]');
+        const checked = document.querySelectorAll('input[type="checkbox"]:checked').length;
+        
+        let mainTotalSets = 0, mainRepresentedSets = 0;
+        let bundleTotalDice = 0, bundleCollectedDice = 0;
+        let promoTotalSets = 0, promoRepresentedSets = 0;
+        let planarTotalDice = 0, planarCollectedDice = 0; 
+        let absoluteTotalSets = 0, absoluteRepresentedSets = 0;
+
+        let visualPromoTotalSets = 0, visualPromoRepresentedSets = 0;
+        let visualPromoTotalDice = 0, visualPromoCollectedDice = 0;
+
+        window.missingData.main = [];
+        window.missingData.promo = [];
+        window.missingData.planar = [];
+        window.missingData.bundle = [];
+
+        const getLabel = (era, set, eIdx, sIdx, variant) => {
+            let labelText = set.count === 1 ? 'Single Variant' : `Variant 0${variant}`;
+            const mtgColors = ["White", "Blue", "Black", "Red", "Green"];
+            if (set.count === 5 && variant >= 1 && variant <= 5 && set.name !== "Planechase") {
+                labelText = mtgColors[variant - 1];
+            }
+            if (set.name === "March of the Machine" && variant >= 6) {
+                labelText = `Planar Variant 0${variant - 5}`;
+            }
+            if (set.name === "Planechase" && set.count === 5) {
+                if (variant === 5) labelText = "Planar Variant (Green)";
+                else labelText = `D20 Spindown 0${variant}`;
+            }
+            if (era.year === "BUNDLE DICE" && set.name === "Outlaws of Thunder Junction") {
+                if (variant === 1) labelText = "Bundle Spindown";
+                if (variant === 2) labelText = "Golden Nugget Promo";
+            }
+            return window.customTextData[`label_d_${eIdx}_${sIdx}_${variant}`] || labelText;
+        };
+        
+        siteData.forEach((era, eIdx) => {
+            const isBundleEra = (era.year === "BUNDLE DICE");
+            const isPremiumOrFTV = (era.year === "Premium Deck Series" || era.year === "From The Vault Series");
+            
+            let eraTotalSets = 0, eraRepresentedSets = 0;
+            let eraTotalDice = 0, eraCollectedDice = 0;
+
+            era.items.forEach((set, sIdx) => {
+                const blockId = `set_block_${eIdx}_${sIdx}`;
+                const isExplicitPromo = (set.isPromo === true);
+                const isPlanarItem = (set.isPlanar === true);
+                const isPlanechaseAnthology = (set.name === "Planechase" && set.count === 5);
+                const isFullPromoSet = (isPremiumOrFTV || isExplicitPromo || isPlanechaseAnthology);
+                const isThunderJunction = (isBundleEra && set.name === "Outlaws of Thunder Junction" && set.count === 2);
+                const isMOM = (set.name === "March of the Machine" && set.count === 10);
+                
+                const displaySetTitle = window.customTextData[`title_${eIdx}_${sIdx}`] || set.name;
+
+                // Handle Thunder Junction Split Math
+                if (isThunderJunction) {
+                    let v1El = document.getElementById(`d_${eIdx}_${sIdx}_1`);
+                    let v1Checked = v1El && v1El.checked;
+                    eraTotalDice++; bundleTotalDice++; absoluteTotalSets++; eraTotalSets++;
+                    if (v1Checked) { eraCollectedDice++; bundleCollectedDice++; absoluteRepresentedSets++; eraRepresentedSets++; }
+                    else window.missingData.bundle.push({ name: `${displaySetTitle} (${getLabel(era, set, eIdx, sIdx, 1)})`, id: `${blockId}_1`, eIdx: eIdx, sIdx: sIdx });
+
+                    let v2El = document.getElementById(`d_${eIdx}_${sIdx}_2`);
+                    let v2Checked = v2El && v2El.checked;
+                    visualPromoTotalDice++; promoTotalSets++; visualPromoTotalSets++;
+                    if (v2Checked) { visualPromoCollectedDice++; promoRepresentedSets++; visualPromoRepresentedSets++; }
+                    else window.missingData.promo.push({ name: `${displaySetTitle} (${getLabel(era, set, eIdx, sIdx, 2)})`, id: `${blockId}_2`, eIdx: eIdx, sIdx: sIdx });
+                    
+                    return;
+                }
+
+                // Handle March of the Machine Math
+                if (isMOM) {
+                    eraTotalSets++; absoluteTotalSets++; mainTotalSets++;
+                    let hasMainDie = false;
+                    for(let v=1; v<=10; v++) {
+                        let el = document.getElementById(`d_${eIdx}_${sIdx}_${v}`);
+                        let isChecked = el && el.checked;
+                        eraTotalDice++;
+                        if (isChecked) eraCollectedDice++;
+
+                        if (v >= 6) {
+                            planarTotalDice++;
+                            if (isChecked) planarCollectedDice++;
+                            else window.missingData.planar.push({ name: `${displaySetTitle} (${getLabel(era, set, eIdx, sIdx, v)})`, id: blockId, eIdx: eIdx, sIdx: sIdx });
+                        } else {
+                            if (isChecked) hasMainDie = true;
+                        }
+                    }
+                    if (hasMainDie) { eraRepresentedSets++; absoluteRepresentedSets++; mainRepresentedSets++; }
+                    else window.missingData.main.push({ name: displaySetTitle, id: blockId, eIdx: eIdx, sIdx: sIdx });
+                    return; 
+                }
+
+                // Handle Planechase 2016 Math
+                if (isPlanechaseAnthology) {
+                    visualPromoTotalSets++; promoTotalSets++; absoluteTotalSets++;
+                    let hasPromoDie = false;
+                    for(let v=1; v<=5; v++) {
+                        let el = document.getElementById(`d_${eIdx}_${sIdx}_${v}`);
+                        let isChecked = el && el.checked;
+                        visualPromoTotalDice++;
+                        if (isChecked) visualPromoCollectedDice++;
+
+                        if (v === 5) {
+                            planarTotalDice++;
+                            if (isChecked) planarCollectedDice++;
+                            else window.missingData.planar.push({ name: `${displaySetTitle} (${getLabel(era, set, eIdx, sIdx, v)})`, id: blockId, eIdx: eIdx, sIdx: sIdx });
+                        } else {
+                            if (isChecked) hasPromoDie = true;
+                        }
+                    }
+                    if (hasPromoDie) { visualPromoRepresentedSets++; promoRepresentedSets++; absoluteRepresentedSets++; }
+                    else window.missingData.promo.push({ name: `${displaySetTitle} (D20s)`, id: blockId, eIdx: eIdx, sIdx: sIdx });
+                    return;
+                }
+
+                // Standard Set Math
+                let checkedInSet = 0;
+                for(let v=1; v<=set.count; v++) {
+                    let el = document.getElementById(`d_${eIdx}_${sIdx}_${v}`);
+                    let isChecked = el && el.checked;
+                    if(isChecked) checkedInSet++;
+
+                    if (isFullPromoSet) {
+                        visualPromoTotalDice++;
+                        if (isChecked) visualPromoCollectedDice++;
+                    } else {
+                        eraTotalDice++;
+                        if (isChecked) eraCollectedDice++;
+                    }
+
+                    if (isPlanarItem) {
+                        planarTotalDice++;
+                        if (isChecked) planarCollectedDice++;
+                        else window.missingData.planar.push({ name: `${displaySetTitle}` + (set.count > 1 ? ` (${getLabel(era, set, eIdx, sIdx, v)})` : ``), id: blockId, eIdx: eIdx, sIdx: sIdx });
+                    } else if (isBundleEra && !isFullPromoSet) {
+                        bundleTotalDice++;
+                        if (isChecked) bundleCollectedDice++;
+                        else window.missingData.bundle.push({ name: `${displaySetTitle}` + (set.count > 1 ? ` (${getLabel(era, set, eIdx, sIdx, v)})` : ``), id: blockId, eIdx: eIdx, sIdx: sIdx });
+                    }
+                }
+
+                absoluteTotalSets++;
+                if (checkedInSet > 0) absoluteRepresentedSets++;
+
+                if (set.count >= 4) {
+                    let btn = document.getElementById(`btn_all_${eIdx}_${sIdx}`);
+                    if (btn) btn.innerText = (checkedInSet === set.count) ? "Deselect All" : "Select All";
+                }
+
+                if (isFullPromoSet) {
+                    visualPromoTotalSets++; promoTotalSets++;
+                    if (checkedInSet > 0) { visualPromoRepresentedSets++; promoRepresentedSets++; }
+                    else window.missingData.promo.push({ name: displaySetTitle, id: blockId, eIdx: eIdx, sIdx: sIdx });
+                } else {
+                    eraTotalSets++;
+                    if (checkedInSet > 0) eraRepresentedSets++;
+                    
+                    if (!isPlanarItem && !(isBundleEra && !isFullPromoSet)) {
+                        mainTotalSets++;
+                        if (checkedInSet > 0) mainRepresentedSets++;
+                        else window.missingData.main.push({ name: displaySetTitle, id: blockId, eIdx: eIdx, sIdx: sIdx });
+                    }
+                }
+            });
+
+            // Write Dual Stats to standard Era Header (only if it wasn't stripped to be purely Promo)
+            if (!isPremiumOrFTV) {
+                const eraSetProgress = (eraTotalSets > 0) ? (eraRepresentedSets / eraTotalSets) * 100 : 0;
+                const eraDiceProgress = (eraTotalDice > 0) ? (eraCollectedDice / eraTotalDice) * 100 : 0;
+                
+                const fillEl = document.getElementById(`fill_era_${eIdx}`);
+                if(fillEl) fillEl.style.width = eraDiceProgress + '%';
+                
+                const setStr = eraSetProgress === 100 ? `⭐ Sets: ${eraRepresentedSets} / ${eraTotalSets} (100%)` : `Sets: ${eraRepresentedSets} / ${eraTotalSets} (${Math.round(eraSetProgress)}%)`;
+                const diceStr = eraDiceProgress === 100 ? `⭐ Dice: ${eraCollectedDice} / ${eraTotalDice} (100%)` : `Dice: ${eraCollectedDice} / ${eraTotalDice} (${Math.round(eraDiceProgress)}%)`;
+                
+                const statsEl = document.getElementById(`stats_era_${eIdx}`);
+                if(statsEl) statsEl.innerHTML = `${setStr}<br>${diceStr}`;
+            }
+        });
+
+        // Write Dual Stats to Dynamic Promo Era Header
+        const pEraSetProg = (visualPromoTotalSets > 0) ? (visualPromoRepresentedSets / visualPromoTotalSets) * 100 : 0;
+        const pEraDiceProg = (visualPromoTotalDice > 0) ? (visualPromoCollectedDice / visualPromoTotalDice) * 100 : 0;
+        const pFillEl = document.getElementById(`fill_era_promo`);
+        if(pFillEl) pFillEl.style.width = pEraDiceProg + '%';
+        const pSetStr = pEraSetProg === 100 ? `⭐ Sets: ${visualPromoRepresentedSets} / ${visualPromoTotalSets} (100%)` : `Sets: ${visualPromoRepresentedSets} / ${visualPromoTotalSets} (${Math.round(pEraSetProg)}%)`;
+        const pDiceStr = pEraDiceProg === 100 ? `⭐ Dice: ${visualPromoCollectedDice} / ${visualPromoTotalDice} (100%)` : `Dice: ${visualPromoCollectedDice} / ${visualPromoTotalDice} (${Math.round(pEraDiceProg)}%)`;
+        const pStatsEl = document.getElementById(`stats_era_promo`);
+        if(pStatsEl) pStatsEl.innerHTML = `${pSetStr}<br>${pDiceStr}`;
+
+        // Global Master Trackers
+        const progress = (cbs.length > 0) ? (checked / cbs.length) * 100 : 0;
+        const totalSetProgress = (absoluteTotalSets > 0) ? (absoluteRepresentedSets / absoluteTotalSets) * 100 : 0;
+        const totalSetStr = totalSetProgress === 100 ? `⭐ Sets: ${absoluteRepresentedSets} / ${absoluteTotalSets} (100%)` : `Sets: ${absoluteRepresentedSets} / ${absoluteTotalSets} (${Math.round(totalSetProgress)}%)`;
+        const totalDiceStr = progress === 100 ? `⭐ Dice: ${checked} / ${cbs.length} (100%)` : `Dice: ${checked} / ${cbs.length} (${Math.round(progress)}%)`;
+        
+        document.getElementById('pText').innerHTML = `${totalSetStr}<br>${totalDiceStr}`;
+        document.getElementById('pFill').style.width = progress + '%';
+        
+        const mainSetProgress = (mainTotalSets > 0) ? (mainRepresentedSets / mainTotalSets) * 100 : 0;
+        document.getElementById('set_pFill').style.width = mainSetProgress + '%';
+        document.getElementById('set_pText').innerText = mainSetProgress === 100 ? `⭐ ${mainRepresentedSets} / ${mainTotalSets} (100%)` : `${mainRepresentedSets} / ${mainTotalSets} (${Math.round(mainSetProgress)}%)`;
+
+        const bundleSetProgress = (bundleTotalDice > 0) ? (bundleCollectedDice / bundleTotalDice) * 100 : 0;
+        document.getElementById('bundle_pFill').style.width = bundleSetProgress + '%';
+        document.getElementById('bundle_pText').innerText = bundleSetProgress === 100 ? `⭐ ${bundleCollectedDice} / ${bundleTotalDice} (100%)` : `${bundleCollectedDice} / ${bundleTotalDice} (${Math.round(bundleSetProgress)}%)`;
+        
+        const promoSetProgress = (promoTotalSets > 0) ? (promoRepresentedSets / promoTotalSets) * 100 : 0;
+        document.getElementById('promo_pFill').style.width = promoSetProgress + '%';
+        document.getElementById('promo_pText').innerText = promoSetProgress === 100 ? `⭐ ${promoRepresentedSets} / ${promoTotalSets} (100%)` : `${promoRepresentedSets} / ${promoTotalSets} (${Math.round(promoSetProgress)}%)`;
+        
+        const planarSetProgress = (planarTotalDice > 0) ? (planarCollectedDice / planarTotalDice) * 100 : 0;
+        document.getElementById('planar_pFill').style.width = planarSetProgress + '%';
+        document.getElementById('planar_pText').innerText = planarSetProgress === 100 ? `⭐ ${planarCollectedDice} / ${planarTotalDice} (100%)` : `${planarCollectedDice} / ${planarTotalDice} (${Math.round(planarSetProgress)}%)`;
+        
+        try {
+            const status = {};
+            cbs.forEach(cb => { status[cb.id] = cb.checked; });
+            localStorage.setItem('dicecollector_ui_v4', JSON.stringify(status));
+        } catch (e) {}
+    };
+
+    window.resetAll = function() {
+        if(confirm("Erase all tracking data?")) {
+            try { localStorage.removeItem('dicecollector_ui_v4'); } catch(e) {}
+            location.reload();
+        }
+    };
+
+    window.showMissing = function(category) {
+        const modal = document.getElementById('missingModal');
+        const listContainer = document.getElementById('modalList');
+        const titleContainer = document.getElementById('modalTitle');
+        
+        let titleText = "Missing Sets";
+        let titleColor = "#fff";
+        let missingArray = window.missingData[category] || [];
+        
+        if (category === 'main') { titleText = "Missing Main Sets"; titleColor = "var(--gold)"; }
+        if (category === 'promo') { titleText = "Missing Promo Sets"; titleColor = "var(--promo)"; }
+        if (category === 'planar') { titleText = "Missing Planar Dice"; titleColor = "var(--planar)"; }
+        if (category === 'bundle') { titleText = "Missing Bundle Dice"; titleColor = "var(--accent)"; }
+        
+        titleContainer.innerText = titleText;
+        titleContainer.style.color = titleColor;
+        
+        listContainer.innerHTML = ''; 
+        
+        if (missingArray.length === 0) {
+            listContainer.innerHTML = `<li class="all-caught-up">All caught up! 🎉</li>`;
+        } else {
+            missingArray.forEach(item => {
+                const li = document.createElement('li');
+                const link = document.createElement('a');
+                link.className = 'missing-item-link';
+                link.innerText = item.name; 
+                link.onclick = () => window.goToSet(item.id, item.eIdx);
+                li.appendChild(link);
+                listContainer.appendChild(li);
+            });
+        }
+        
+        modal.style.display = 'flex';
+    };
+
+    window.closeModal = function(event) {
+        if (event) event.stopPropagation();
+        document.getElementById('missingModal').style.display = 'none';
+    };
+
+    window.buildVault = function() {
+        const vault = document.getElementById('vault');
+        let saved = {};
+
+        try {
+            saved = JSON.parse(localStorage.getItem('dicecollector_ui_v4') || '{}');
+        } catch (e) {}
+
+        let promoEraContentHtml = '';
+        let standardErasHtml = '';
+        const mtgColors = ["White", "Blue", "Black", "Red", "Green"];
+        
+        siteData.forEach((era, eIdx) => {
+            const isPremiumOrFTV = (era.year === "Premium Deck Series" || era.year === "From The Vault Series");
+            let currentEraNormalHtml = '';
+            
+            if (!isPremiumOrFTV) {
+                currentEraNormalHtml += `
+                <div class="era-wrapper" id="era_wrap_${eIdx}">
+                    <div class="era-sticky-wrapper">
+                        <div class="era-header-container" onclick="window.toggleEra('${eIdx}')">
+                            <h3 class="era-header">${era.year} <span id="era_caret_${eIdx}" class="era-caret">▼</span></h3>
+                            <div class="era-stats" id="stats_era_${eIdx}">Sets: 0 / 0 (0%)<br>Dice: 0 / 0 (0%)</div>
+                        </div>
+                        <div class="era-progress-bar"><div id="fill_era_${eIdx}" class="era-progress-fill"></div></div>
+                    </div>
+                    <div class="era-content" id="era_content_${eIdx}">
+                `;
+            }
+
+            era.items.forEach((set, sIdx) => {
+                const blockId = `set_block_${eIdx}_${sIdx}`;
+                const customTitleId = `title_${eIdx}_${sIdx}`;
+                const displaySetTitle = window.customTextData[customTitleId] || set.name;
+                
+                const isExplicitPromo = (set.isPromo === true);
+                const isPlanechaseAnthology = (set.name === "Planechase" && set.count === 5);
+                const isFullPromoSet = (isPremiumOrFTV || isExplicitPromo || isPlanechaseAnthology);
+                const isThunderJunction = (era.year === "BUNDLE DICE" && set.name === "Outlaws of Thunder Junction" && set.count === 2);
+
+                // Split Thunder Junction Visually
+                if (isThunderJunction) {
+                    let v1Label = window.customTextData[`label_d_${eIdx}_${sIdx}_1`] || "Bundle Spindown";
+                    let v1Img = `${displaySetTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '')}_${v1Label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '')}.jpg`;
+                    currentEraNormalHtml += `
+                    <div class="set-block" id="${blockId}_1">
+                        <div class="set-title-bar"><div class="set-title-wrapper"><div class="set-title editable-text" id="${customTitleId}" onblur="window.saveCustomText('${customTitleId}', this.innerText)">${displaySetTitle}</div></div></div>
+                        <div class="item">
+                            <input type="checkbox" id="d_${eIdx}_${sIdx}_1" data-era="${eIdx}" ${saved[`d_${eIdx}_${sIdx}_1`] ? 'checked' : ''}>
+                            <div class="dice-img"><img src="${v1Img}" onclick="window.openImageModal('${v1Img}')" onerror="this.style.display='none'; this.parentElement.innerHTML='IMG';"></div>
+                            <div class="label-container"><label for="d_${eIdx}_${sIdx}_1" onclick="if(window.isDevMode) event.preventDefault();"><span class="editable-text" id="label_d_${eIdx}_${sIdx}_1" onblur="window.saveCustomText('label_d_${eIdx}_${sIdx}_1', this.innerText)">${v1Label}</span></label><span class="filename-hint">Name image: ${v1Img}</span></div>
+                        </div>
+                    </div>`;
+
+                    let v2Label = window.customTextData[`label_d_${eIdx}_${sIdx}_2`] || "Golden Nugget Promo";
+                    let v2Img = `${displaySetTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '')}_${v2Label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '')}.jpg`;
+                    promoEraContentHtml += `
+                    <div class="set-block" id="${blockId}_2">
+                        <div class="set-title-bar"><div class="set-title-wrapper"><div class="set-title editable-text" id="${customTitleId}_promo" onblur="window.saveCustomText('${customTitleId}_promo', this.innerText)">${displaySetTitle} (Promo)</div></div></div>
+                        <div class="item">
+                            <input type="checkbox" id="d_${eIdx}_${sIdx}_2" data-era="promo" ${saved[`d_${eIdx}_${sIdx}_2`] ? 'checked' : ''}>
+                            <div class="dice-img"><img src="${v2Img}" onclick="window.openImageModal('${v2Img}')" onerror="this.style.display='none'; this.parentElement.innerHTML='IMG';"></div>
+                            <div class="label-container"><label for="d_${eIdx}_${sIdx}_2" onclick="if(window.isDevMode) event.preventDefault();"><span class="editable-text" id="label_d_${eIdx}_${sIdx}_2" onblur="window.saveCustomText('label_d_${eIdx}_${sIdx}_2', this.innerText)">${v2Label}</span></label><span class="filename-hint">Name image: ${v2Img}</span></div>
+                        </div>
+                    </div>`;
+                    return;
+                }
+
+                let selectAllBtnHtml = set.count >= 4 ? `<button id="btn_all_${eIdx}_${sIdx}" class="btn-select-all" onclick="window.toggleSetAll('${eIdx}', '${sIdx}', ${set.count})">Select All</button>` : '';
+                
+                let setHtml = `
+                <div class="set-block" id="${blockId}">
+                    <div class="set-title-bar">
+                        <div class="set-title-wrapper">
+                            <div class="set-title editable-text" id="${customTitleId}" onblur="window.saveCustomText('${customTitleId}', this.innerText)">${displaySetTitle}</div>
+                        </div>
+                        ${selectAllBtnHtml}
+                    </div>`;
+
+                for(let variant = 1; variant <= set.count; variant++) {
+                    const id = `d_${eIdx}_${sIdx}_${variant}`;
+                    const checked = saved[id] ? 'checked' : '';
+                    
+                    let labelText = set.count === 1 ? 'Single Variant' : `Variant 0${variant}`;
+                    if (set.count === 5 && variant >= 1 && variant <= 5 && set.name !== "Planechase") labelText = mtgColors[variant - 1];
+                    if (set.name === "March of the Machine" && variant >= 6) labelText = `Planar Variant 0${variant - 5}`;
+                    if (set.name === "Planechase" && set.count === 5) {
+                        if (variant === 5) labelText = "Planar Variant (Green)";
+                        else labelText = `D20 Spindown 0${variant}`;
+                    }
+
+                    const customLabelId = `label_${id}`;
+                    const displayLabelText = window.customTextData[customLabelId] || labelText;
+                    
+                    let cleanSetName = displaySetTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '');
+                    let cleanLabelName = displayLabelText.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '');
+                    let imgFileName = `${cleanSetName}_${cleanLabelName}.jpg`;
+                    
+                    setHtml += `
+                    <div class="item">
+                        <input type="checkbox" id="${id}" data-era="${isFullPromoSet ? 'promo' : eIdx}" ${checked}>
+                        <div class="dice-img">
+                            <img src="${imgFileName}" onclick="window.openImageModal('${imgFileName}')" onerror="this.style.display='none'; this.parentElement.innerHTML='IMG';">
+                        </div>
+                        <div class="label-container">
+                            <label for="${id}" onclick="if(window.isDevMode) event.preventDefault();">
+                                <span class="editable-text" id="${customLabelId}" onblur="window.saveCustomText('${customLabelId}', this.innerText)">${displayLabelText}</span>
+                            </label>
+                            <span class="filename-hint">Name image: ${imgFileName}</span>
+                        </div>
+                    </div>`;
+                }
+                setHtml += `</div>`;
+
+                if (isFullPromoSet) promoEraContentHtml += setHtml;
+                else currentEraNormalHtml += setHtml;
+            });
+
+            if (!isPremiumOrFTV) {
+                currentEraNormalHtml += `</div></div>`;
+                standardErasHtml += currentEraNormalHtml;
+            }
+        });
+
+        // Prepend dynamically generated Promo Era to Vault
+        let promoEraFinalHtml = `
+            <div class="era-wrapper" id="era_wrap_promo">
+                <div class="era-sticky-wrapper">
+                    <div class="era-header-container" onclick="window.toggleEra('promo')">
+                        <h3 class="era-header" style="color: var(--promo);">PROMO DICE <span id="era_caret_promo" class="era-caret">▼</span></h3>
+                        <div class="era-stats" id="stats_era_promo">Sets: 0 / 0 (0%)<br>Dice: 0 / 0 (0%)</div>
+                    </div>
+                    <div class="era-progress-bar"><div id="fill_era_promo" class="progress-fill-promo"></div></div>
+                </div>
+                <div class="era-content" id="era_content_promo">
+                    ${promoEraContentHtml}
+                </div>
+            </div>
+        `;
+
+        vault.innerHTML = promoEraFinalHtml + standardErasHtml;
+
+        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', window.updateProgress);
+        });
+
+        window.updateProgress();
+        
+        if(window.isDevMode) {
+            document.querySelectorAll('.editable-text').forEach(el => {
+                el.contentEditable = "true";
+                el.classList.add('editable-active');
+            });
+        }
+    };
+
+    window.buildVault();
+
+} catch (error) {
+    document.getElementById('vault').innerHTML = `
+        <div class="error-box">
+            <h3>⚠️ Critical App Failure</h3>
+            <p><strong>Error Message:</strong> ${error.message}</p>
+            <p style="font-size: 0.8em; opacity: 0.8;">${error.stack}</p>
+        </div>`;
+    document.getElementById('pText').innerText = "Crash Detected";
+}
+</script>
+</body>
+</html>
